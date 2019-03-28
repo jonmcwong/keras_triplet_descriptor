@@ -94,15 +94,15 @@ class hpatches_sequence_folder:
 
 
 def generate_triplets(labels, num_triplets, batch_size):
-    def create_indices(_labels):
+    def create_indices(_labels):                        #keeps note of repeating labels
         inds = dict()
         for idx, ind in enumerate(_labels):
             if ind not in inds:
-                inds[ind] = []
-            inds[ind].append(idx)
+                inds[ind] = [] ##key is ind with value empty list
+            inds[ind].append(idx) add to list
         return inds
     triplets = []
-    indices = create_indices(np.asarray(labels))
+    indices = create_indices(np.asarray(labels))        #what is labels
     unique_labels = np.unique(np.asarray(labels))
     n_classes = unique_labels.shape[0]
     # add only unique indices in batch
@@ -158,7 +158,7 @@ class HPatches():
         patches[i*batch_size:] = batch
         return patches
 
-    def read_image_file(self, data_dir, train = 1):
+    def read_image_file(self, data_dir, train = 1): #returns array of patches of both ref and variants
         """Return a Tensor containing the patches
         """
         if self.denoise_model and not self.use_clean:
@@ -171,7 +171,7 @@ class HPatches():
         patches = []
         labels = []
         counter = 0
-        hpatches_sequences = [x[1] for x in os.walk(data_dir)][0]
+        hpatches_sequences = [x[1] for x in os.walk(data_dir)][0] #first directory all directories in data_dir
         if train:
             list_dirs = self.train_fnames
         else:
@@ -179,16 +179,16 @@ class HPatches():
 
         for directory in tqdm(hpatches_sequences, file=sys.stdout):
            if (directory in list_dirs):
-            for tp in tps:
-                if self.use_clean:
+            for tp in tps:  #for every version
+                if self.use_clean: #read the right image
                     sequence_path = os.path.join(data_dir, directory, tp)+'.png'
                 else:
-                    sequence_path = os.path.join(data_dir, directory, tp)+'_noise.png'
+                    sequence_path = os.path.join(data_dir, directory, tp)+'_noise.png'#get noisy img
                 image = cv2.imread(sequence_path, 0)
                 h, w = image.shape
-                n_patches = int(h / w)
+                n_patches = int(h / w) #number of patches in file
                 for i in range(n_patches):
-                    patch = image[i * (w): (i + 1) * (w), 0:w]
+                    patch = image[i * (w): (i + 1) * (w), 0:w] #boundaries of patch
                     patch = cv2.resize(patch, (32, 32))
                     patch = np.array(patch, dtype=np.uint8)
                     patches.append(patch)
@@ -196,10 +196,10 @@ class HPatches():
             counter += n_patches
 
         patches = np.array(patches, dtype=np.uint8)
-        if self.denoise_model and not self.use_clean:
+        if self.denoise_model and not self.use_clean: ##will have to change when they are connected together
             print('Denoising patches...')
             patches = self.denoise_patches(patches)
-        return patches, labels
+        return patches, labels #gives all references and other patches labels are basically patch number
 
 
 class DataGeneratorDesc(keras.utils.Sequence):
@@ -217,13 +217,13 @@ class DataGeneratorDesc(keras.utils.Sequence):
         self.num_triplets = num_triplets
         self.on_epoch_end()
 
-    def get_image(self, t):
+    def get_image(self, t): #gets images from triplet
         def transform_img(img):
             if self.transform is not None:
                 img = transform(img.numpy())
             return img
 
-        a, p, n = self.data[t[0]], self.data[t[1]], self.data[t[2]]
+        a, p, n = self.data[t[0]], self.data[t[1]], self.data[t[2]]#triplet is an array
 
         img_a = transform_img(a).astype(float)
         img_p = transform_img(p).astype(float)
@@ -241,23 +241,23 @@ class DataGeneratorDesc(keras.utils.Sequence):
         '''Denotes the number of batches per epoch'''
         return int(np.floor(len(self.triplets) / self.batch_size))
                 
-    def __getitem__(self, index):
+    def __getitem__(self, index): #gets next batch
         y = np.zeros((self.batch_size, 1))
-        img_a = np.empty((self.batch_size,) + self.dim + (self.n_channels,))
+        img_a = np.empty((self.batch_size,) + self.dim + (self.n_channels,))#declare array
         img_p = np.empty((self.batch_size,) + self.dim + (self.n_channels,))
         if self.out_triplets:
             img_n = np.empty((self.batch_size,) + self.dim + (self.n_channels,))
         for i in range(self.batch_size):
             t = self.triplets[self.batch_size*index + i]    
             img_a_t, img_p_t, img_n_t = self.get_image(t)
-            img_a[i] = img_a_t
+            img_a[i] = img_a_t     ##build batch by appending
             img_p[i] = img_p_t
             if self.out_triplets:
                 img_n[i] = img_n_t
 
         return {'a': img_a, 'p': img_p, 'n': img_n}, y
 
-    def on_epoch_end(self):
+    def on_epoch_end(self): #called at the end of each epoch and the beginning of the first
         # 'Updates indexes after each epoch'
         self.triplets = generate_triplets(self.labels, self.num_triplets, 32)
 
